@@ -2,8 +2,8 @@ import argparse
 import gym
 
 
-def play_text(env_id, keys_to_action=None):
-    env = gym.make(env_id)
+def play_text(env_id, keys_to_action=None, **kwargs):
+    env = gym.make(env_id, **kwargs)
     if keys_to_action is None and hasattr(env, 'get_keys_to_action'):
         keys_to_action = env.get_keys_to_action()
     env.reset()

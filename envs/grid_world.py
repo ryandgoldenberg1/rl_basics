@@ -1,5 +1,4 @@
 from gym.envs.toy_text import discrete
-from gym.envs.registration import register
 from utils.play_text import play_text
 
 
@@ -77,5 +76,4 @@ class GridWorldEnv(discrete.DiscreteEnv):
 
 
 if __name__ == '__main__':
-    register(id='GridWorld-v0', entry_point='envs.grid_world:GridWorldEnv')
     play_text(env_id='GridWorld-v0')
