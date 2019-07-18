@@ -3,7 +3,7 @@ from gym.envs.registration import register
 from utils.play_text import play_text
 
 # Environment from Barto & Sutton Example 4.1
-class GridWorld(discrete.DiscreteEnv):
+class GridWorldEnv(discrete.DiscreteEnv):
     def __init__(self):
         nS = 15
         nA = 4 # { up, down, right, left }
@@ -16,7 +16,8 @@ class GridWorld(discrete.DiscreteEnv):
             up_dest = s - 4
             if up_dest < 0:
                 up_dest = s
-            up_reward = 0 if up_dest == 0 else -1
+            up_reward = -1
+            # up_reward = 0 if up_dest == 0 else -1
             up_done = (up_dest == 0)
             P[s][0] = [ (1., up_dest, up_reward, up_done) ]
 
@@ -25,7 +26,8 @@ class GridWorld(discrete.DiscreteEnv):
             if down_dest > 15:
                 down_dest = s
             down_dest = down_dest % 15
-            down_reward = 0 if down_dest == 0 else -1
+            down_reward = -1
+            # down_reward = 0 if down_dest == 0 else -1
             down_done = (down_dest == 0)
             P[s][1] = [ (1., down_dest, down_reward, down_done) ]
 
@@ -34,7 +36,8 @@ class GridWorld(discrete.DiscreteEnv):
             if right_dest % 4 == 0:
                 right_dest = s
             right_dest = right_dest % 15
-            right_reward = 0 if right_dest == 0 else -1
+            right_reward = -1
+            # right_reward = 0 if right_dest == 0 else -1
             right_done = (right_dest == 0)
             P[s][2] = [ (1., right_dest, right_reward, right_done) ]
 
@@ -42,7 +45,8 @@ class GridWorld(discrete.DiscreteEnv):
             left_dest = s - 1
             if s % 4 == 0:
                 left_dest = s
-            left_reward = 0 if left_dest == 0 else -1
+            left_reward = -1
+            # left_reward = 0 if left_dest == 0 else -1
             left_done = (left_dest == 0)
             P[s][3] = [ (1., left_dest, left_reward, left_done) ]
         isd = [ 1.0 / 14 ] * 15
@@ -76,5 +80,5 @@ class GridWorld(discrete.DiscreteEnv):
 
 
 if __name__ == '__main__':
-    register(id='GridWorld-v0', entry_point='envs.grid_world:GridWorld')
+    register(id='GridWorld-v0', entry_point='envs.grid_world:GridWorldEnv')
     play_text(env_id='GridWorld-v0')
