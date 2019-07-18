@@ -10,7 +10,7 @@ class DpPolicyEvaluation:
         self.env = env
         self.reset()
 
-    def evaluate(self, policy, theta=0.001, gamma=1., max_iter=None, verbose=False):
+    def evaluate(self, policy, theta=0.001, gamma=1., max_iter=None, verbose=False, in_place=False):
         self.reset()
         iter = 0
         while True:
@@ -26,10 +26,13 @@ class DpPolicyEvaluation:
                         policy_prob = policy[s][a]
                         new_value += policy_prob * transition_prob * (reward + gamma * self.value_fn[next_state])
                 new_value_fn[s] = new_value
+                if in_place:
+                    self.value_fn[s] = new_value
                 delta = abs(new_value - old_value)
                 if delta > max_delta:
                     max_delta = delta
-            self.value_fn = new_value_fn
+            if not in_place:
+                self.value_fn = new_value_fn
             iter += 1
             if verbose:
                 print('iter: {}, value_fn:'.format(iter))
