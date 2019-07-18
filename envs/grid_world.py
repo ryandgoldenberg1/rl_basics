@@ -2,6 +2,7 @@ from gym.envs.toy_text import discrete
 from gym.envs.registration import register
 from utils.play_text import play_text
 
+
 # Environment from Barto & Sutton Example 4.1
 class GridWorldEnv(discrete.DiscreteEnv):
     def __init__(self):
@@ -17,7 +18,6 @@ class GridWorldEnv(discrete.DiscreteEnv):
             if up_dest < 0:
                 up_dest = s
             up_reward = -1
-            # up_reward = 0 if up_dest == 0 else -1
             up_done = (up_dest == 0)
             P[s][0] = [ (1., up_dest, up_reward, up_done) ]
 
@@ -27,7 +27,6 @@ class GridWorldEnv(discrete.DiscreteEnv):
                 down_dest = s
             down_dest = down_dest % 15
             down_reward = -1
-            # down_reward = 0 if down_dest == 0 else -1
             down_done = (down_dest == 0)
             P[s][1] = [ (1., down_dest, down_reward, down_done) ]
 
@@ -37,7 +36,6 @@ class GridWorldEnv(discrete.DiscreteEnv):
                 right_dest = s
             right_dest = right_dest % 15
             right_reward = -1
-            # right_reward = 0 if right_dest == 0 else -1
             right_done = (right_dest == 0)
             P[s][2] = [ (1., right_dest, right_reward, right_done) ]
 
@@ -46,7 +44,6 @@ class GridWorldEnv(discrete.DiscreteEnv):
             if s % 4 == 0:
                 left_dest = s
             left_reward = -1
-            # left_reward = 0 if left_dest == 0 else -1
             left_done = (left_dest == 0)
             P[s][3] = [ (1., left_dest, left_reward, left_done) ]
         isd = [ 1.0 / 14 ] * 15
