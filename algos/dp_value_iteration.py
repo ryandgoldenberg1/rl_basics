@@ -2,7 +2,7 @@ import gym
 from gym.envs.toy_text import discrete
 import matplotlib.pyplot as plt
 import envs.gamblers_problem
-
+from algos.dp_policy_evaluation import DpLinearPolicyEvaluation
 
 
 class DpValueIteration:
@@ -59,7 +59,6 @@ if __name__ == '__main__':
     value_iteration = DpValueIteration(env, discount_factor=1.)
     value_fn, policy, history = value_iteration.fit(theta=0., return_history=True)
 
-
     print('value_fn:', value_fn)
     print('policy:', policy)
 
@@ -78,26 +77,19 @@ if __name__ == '__main__':
     plt.plot(range(len(policy)), policy)
     plt.show()
 
+    # Policy found by algorithm above is slightly different than Sutton & Barto
+    # Comparing the policies shows that the induced value function difference is negligible, ~e-16
     policy1 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 11, 10, 16, 17, 18, 6, 5, 4, 3, 2, 1, 25, 1, 2, 3, 4, 5, 6, 32, 8, 9, 10, 11, 13, 12, 39, 10, 9, 8, 7, 6, 5, 4, 3, 2, 49, 50, 1, 2, 3, 4, 45, 6, 7, 8, 9, 10, 39, 12, 37, 14, 35, 9, 8, 7, 6, 5, 21, 3, 2, 24, 25, 1, 2, 3, 4, 5, 6, 18, 8, 16, 10, 11, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
     policy2 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 25, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 50, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 25, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
 
-    def play_episode(policy):
-        total_reward = 0
-        state = env.reset()
-        while True:
-            action = policy[state]
-            state, reward, done, _ = env.step(action)
-            total_reward += reward
-            if done:
-                return total_reward
-
-
-    def evaluate_policy(policy, num_episodes=100000):
-        rewards = [ play_episode(policy) for _ in range(num_episodes) ]
-        return sum(rewards) / len(rewards)
-
+    def evaluate_policy(policy):
+        evaluator = DpLinearPolicyEvaluation(env)
+        return evaluator.evaluate(policy)
 
     policy1_value = evaluate_policy(policy1)
     policy2_value = evaluate_policy(policy2)
     print('policy1 (ours):', policy1_value)
     print('policy2 (optimal):', policy2_value)
+    policy_value_diff = [ policy1_value[i] - policy2_value[i] for i in range(len(policy1_value)) ]
+    print('max diff (1 - 2):', max(policy_value_diff))
+    print('min diff (1 - 2):', min(policy_value_diff))
