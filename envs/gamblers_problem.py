@@ -14,7 +14,7 @@ class GamblersProblemEnv(discrete.DiscreteEnv):
         for s in range(nS):
             P[s] = {}
             for a in range(nA):
-                if a > s:
+                if a > s or s >= 100 or a == 0:
                     P[s][a] = []
                 else:
                     win_prob = p
@@ -31,9 +31,8 @@ class GamblersProblemEnv(discrete.DiscreteEnv):
                         (win_prob, win_result, win_reward, win_done),
                         (loss_prob, loss_result, loss_reward, loss_done),
                     ]
-        isd = [ 1 / 99 for _ in range(nS) ]
-        isd[0] = 0
-        isd[100] = 0
+        isd = [0] * nS
+        isd[50] = 1.
         super().__init__(nS=nS, nA=nA, P=P, isd=isd)
 
     def render(self, mode='human'):
