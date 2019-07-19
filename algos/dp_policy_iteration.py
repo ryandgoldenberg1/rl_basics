@@ -2,7 +2,7 @@ import gym
 import random
 import pprint as pp
 from gym.envs.toy_text import discrete
-from .dp_policy_evaluation import DpPolicyEvaluation
+from .dp_policy_evaluation import DpIterativePolicyEvaluation
 
 
 class DpPolicyIteration:
@@ -11,7 +11,7 @@ class DpPolicyIteration:
         assert discount_factor >= 0 and discount_factor <= 1
         self.env = env
         self.discount_factor = discount_factor
-        self.policy_evaluation = DpPolicyEvaluation(env)
+        self.policy_evaluation = DpIterativePolicyEvaluation(env)
 
     def fit(self, verbose=False):
         # Initialize random policy and value function
