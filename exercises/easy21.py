@@ -1,6 +1,8 @@
 from collections import defaultdict
 import copy
+import json
 import random
+from tqdm import tqdm, trange
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
@@ -108,6 +110,11 @@ class Easy21Env(gym.Env):
         state = (player_sum + 9, dealer_sum + 9)
         return self.state_to_id(state)
 
+    def state_id_to_sums(self, state_id):
+        state = self.id_to_state(state_id)
+        player_sum, dealer_sum = state
+        return (player_sum - 9, dealer_sum - 9)
+
 
 
 class MonteCarloControl:
@@ -206,6 +213,144 @@ class MonteCarloControl:
         return random.choice(max_actions)
 
 
+class SarsaLambda:
+    def __init__(self, env, n0, discount_factor, lambda_):
+        num_states = env.num_states
+        num_actions = env.action_space.n
+
+        self.num_states = num_states
+        self.num_actions = num_actions
+        self.env = env
+        self.n0 = n0
+        self.discount_factor = discount_factor
+        self.lambda_ = lambda_
+        self.action_value_fn = [[0 for _ in range(num_actions)] for _ in range(num_states)]
+        self.state_visits = [0 for _ in range(num_states)]
+        self.action_visits = [[0 for _ in range(num_actions)] for _ in range(num_states)]
+
+    def train(self, num_episodes):
+        for episode_idx in range(num_episodes):
+            state = self.env.reset()
+            state_id = self.env.state_to_id(state)
+            self.state_visits[state_id] += 1
+            action = self._act(state_id)
+            done = False
+            eligibility_trace = [[0 for _ in range(self.num_actions)] for _ in range(self.num_states)]
+            while not done:
+                next_state, reward, done, _ = self.env.step(action)
+                next_state_id = self.env.state_to_id(next_state)
+                for s in range(self.num_states):
+                    for a in range(self.num_actions):
+                        eligibility_trace[s][a] *= self.discount_factor * self.lambda_
+                eligibility_trace[state_id][action] += 1
+                self.action_visits[state_id][action] += 1
+                self.state_visits[next_state_id] += 1
+                next_action = self._act(next_state_id)
+                step_size = 1 / self.action_visits[state_id][action]
+                delta = reward + self.action_value_fn[next_state_id][next_action] - self.action_value_fn[state_id][action]
+                self.action_value_fn[state_id][action] += step_size * delta * eligibility_trace[state_id][action]
+                state = next_state
+                state_id = next_state_id
+                action = next_action
+
+    def _act(self, state_id):
+        epsilon = self.n0 / (self.n0 + self.state_visits[state_id])
+        if random.random() < epsilon:
+            return self.env.action_space.sample()
+        return self._greedy_action(state_id)
+
+    def _greedy_action(self, state_id):
+        action_values = self.action_value_fn[state_id]
+        max_action_value = max(action_values)
+        max_actions = [i for i, value in enumerate(action_values) if value == max_action_value]
+        return random.choice(max_actions)
+
+
+
+class ApproxSarsaLambda:
+    def __init__(self, env, n0, discount_factor, lambda_, epsilon, step_size):
+        num_states = env.num_states
+        num_actions = env.action_space.n
+        self.num_states = num_states
+        self.num_actions = num_actions
+        self.env = env
+        self.n0 = n0
+        self.discount_factor = discount_factor
+        self.lambda_ = lambda_
+        self.epsilon = epsilon
+        self.step_size = step_size
+
+        cuboids = []
+        for dealer_range in [range(1, 5), range(4, 8), range(7, 11)]:
+            for player_range in [range(1, 7), range(4, 10), range(7, 13), range(10, 16), range(13, 19), range(16, 22)]:
+                for action in range(num_actions):
+                    cuboids.append((dealer_range, player_range, action))
+        self.cuboids = cuboids
+        self.num_features = len(cuboids)
+        self.weights = [0 for _ in range(self.num_features)]
+
+    def feature_fn(self, state_id, action):
+        player_sum, dealer_sum = self.env.state_id_to_sums(state_id)
+        features = [0 for _ in range(self.num_features)]
+        for i, cuboid in enumerate(self.cuboids):
+            if dealer_sum in cuboid[0] and player_sum in cuboid[1] and action == cuboid[2]:
+                features[i] = 1
+        return features
+
+    def train(self, num_episodes):
+        for episode_idx in trange(num_episodes):
+            state = self.env.reset()
+            state_id = self.env.state_to_id(state)
+            done = False
+            action = self._act(state_id)
+            eligibility_trace = [0 for _ in range(self.num_features)]
+            while not done:
+                # Take action
+                next_state, reward, done, _ = self.env.step(action)
+                next_state_id = self.env.state_to_id(next_state)
+                next_action = self._act(next_state_id)
+
+                # Update eligibility trace
+                eligibility_trace = [x * self.discount_factor * self.lambda_ for x in eligibility_trace]
+                features = self.feature_fn(state_id, action)
+                for i in range(self.num_features):
+                    eligibility_trace[i] += features[i]
+
+                # Perform sarsa update
+                target = reward + self.discount_factor * self._action_value(next_state_id, next_action)
+                delta = target - self._action_value(state_id, action)
+                for i in range(self.num_features):
+                    self.weights[i] += self.step_size * delta * eligibility_trace[i]
+
+                # Go to next step
+                state = next_state
+                state_id = next_state_id
+                action = next_action
+
+    def action_value_fn(self):
+        action_value_fn = [[0 for _ in range(self.num_actions)] for _ in range(self.num_states)]
+        for state in range(self.num_states):
+            for action in range(self.num_actions):
+                value = self._action_value(state, action)
+                action_value_fn[state][action] = value
+        return action_value_fn
+
+    def _act(self, state_id):
+        if random.random() < self.epsilon:
+            return self.env.action_space.sample()
+        return self._greedy_action(state_id)
+
+    def _action_value(self, state_id, action):
+        features = self.feature_fn(state_id, action)
+        return sum(f * w for f, w in zip(features, self.weights))
+
+    def _greedy_action(self, state_id):
+        action_values = [self._action_value(state_id, action) for action in range(self.num_actions)]
+        max_action_value = max(action_values)
+        max_actions = [i for i, value in enumerate(action_values) if value == max_action_value]
+        return random.choice(max_actions)
+
+
 if __name__ == '__main__':
     register(id='Easy21-v0', entry_point='exercises.easy21:Easy21Env')
     env = gym.make('Easy21-v0')
@@ -215,6 +360,63 @@ if __name__ == '__main__':
 
 
     # Part 2: Monte Carlo Control
-    mc_control = MonteCarloControl(env, n0=100, discount_factor=1)
-    mc_control.train(num_episodes=1000000)
-    mc_control.plot_value_fn()
+    # mc_control = MonteCarloControl(env, n0=100, discount_factor=1)
+    # mc_control.train(num_episodes=1000000)
+    # mc_control.plot_value_fn()
+    # with open('mc_value_fn.json', 'w') as f:
+    #     json.dump(mc_control.action_value_fn, f)
+
+    # with open('mc_value_fn.json') as f:
+    #     mc_value_fn = json.load(f)
+    # def _mse(action_value_fn):
+    #     value_diff = 0
+    #     num_states = len(mc_value_fn)
+    #     num_actions = env.action_space.n
+    #     for s in range(num_states):
+    #         for a in range(num_actions):
+    #             value_diff += (mc_value_fn[s][a] - action_value_fn[s][a]) ** 2
+    #     value_diff /= (num_states * num_actions)
+    #     return value_diff
+    # lambdas = np.arange(0, 1.1, 0.1).tolist()
+
+    # Part 3: Sarsa
+    # value_diffs = []
+    # for lambda_ in tqdm(lambdas):
+    #     sarsa = SarsaLambda(env, n0=100, discount_factor=1, lambda_=lambda_)
+    #     sarsa.train(num_episodes=10000)
+    #     value_diffs.append(_mse(sarsa.action_value_fn))
+    # plt.plot(lambdas, value_diffs)
+    # plt.show()
+    #
+    # for lambda_ in (0, 1):
+    #     sarsa = SarsaLambda(env, n0=100, discount_factor=1, lambda_=lambda_)
+    #     y = [_mse(sarsa.action_value_fn)]
+    #     x = [0]
+    #     for _ in trange(20):
+    #         sarsa.train(num_episodes=100)
+    #         y.append(_mse(sarsa.action_value_fn))
+    #         x.append(x[-1] + 100)
+    #     plt.plot(x, y)
+    #     plt.show()
+
+
+    # Part 4: Linear Function Approximation in Easy21
+    # sarsa_approx = ApproxSarsaLambda(env, n0=100, discount_factor=1, lambda_=1., epsilon=0.05, step_size=0.01)
+    # x = [0]
+    # sarsa_approx.action_value_fn()
+    # y = [_mse(sarsa_approx.action_value_fn()) ]
+    # for _ in range(20):
+    #     sarsa_approx.train(num_episodes=100)
+    #     x.append(x[-1] + 100)
+    #     y.append(_mse(sarsa_approx.action_value_fn()))
+    # plt.plot(x, y)
+    # plt.show()
+    #
+    # y = []
+    # for lambda_ in tqdm(lambdas):
+    #     sarsa_approx = ApproxSarsaLambda(env, n0=100, discount_factor=1, lambda_=1., epsilon=0.05, step_size=0.01)
+    #     sarsa_approx.train(num_episodes=10000)
+    #     action_value_fn = sarsa_approx.action_value_fn()
+    #     y.append(_mse(action_value_fn))
+    # plt.plot(lambdas, y)
+    # plt.show()
